@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:jms="http://www.mulesoft.org/schema/mule/jms" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns:vm="http://www.mulesoft.org/schema/mule/vm" xmlns:os="http://www.mulesoft.org/schema/mule/os" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/os http://www.mulesoft.org/schema/mule/os/current/mule-os.xsd
+http://www.mulesoft.org/schema/mule/vm http://www.mulesoft.org/schema/mule/vm/current/mule-vm.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/jms http://www.mulesoft.org/schema/mule/jms/current/mule-jms.xsd">
+	<os:config name="ObjectStore_Config_commonxref" doc:name="ObjectStore Config" doc:id="a0d172d6-b29f-42df-b72d-0d37496c27d5" />
+	<os:object-store name="Object_store_commonxref" doc:name="Object store" doc:id="e0204898-6ac8-4db4-8886-f3bf33820559" config-ref="ObjectStore_Config_commonxref" />
+	<os:config name="ObjectStore_Config_api" doc:name="ObjectStore Config" doc:id="2476299b-7ce2-4b56-8572-f5f4860adff4" />
+	<os:object-store name="Object_store_api" doc:name="Object store" doc:id="4c2bebbe-a7ca-4973-87c8-43388b7a5e48" config-ref="ObjectStore_Config_api" />
+	<http:request-config name="HTTP_Request_configuration" doc:name="HTTP Request configuration" doc:id="8c9ee41a-eccc-46ef-b25e-08ed11da10e4" >
+		<http:request-connection host="localhost" port="8081" />
+	</http:request-config>
+	<flow name="GET_ClientFlowFlow" doc:id="835cd939-e1bc-4553-8c83-a5cbf3ad31e2" >
+		<http:listener doc:name="Listener" doc:id="9e2f3121-9e84-468d-a589-b20f8dcb9f52" config-ref="HTTP_Listener_config" path="/clientapi"/>
+		<set-variable value="" doc:name="Set Variable" doc:id="d25907d0-e119-4cae-951e-42b4aa09500d" />
+		<set-variable value="" doc:name="Set Variable" doc:id="f1fd3a92-8f92-4caa-a95b-40b01e9911f7" />
+		<logger level="INFO" doc:name="Logger" doc:id="9e0fc205-d204-4316-a621-7957f63e15e2" message="Client API GET Listener : started ......" />
+		<flow-ref doc:name="Flow Reference" doc:id="582c4ec6-62ad-4202-bbca-04b63dfeaaa0" name="CommonXREFTemplateFlow"/>
+		<ee:transform doc:name="Transform Message" doc:id="b97d7bbb-232c-4590-bcf9-c98abe33576d" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+fun nullcheck()=
+//
+---
+var test1
+var test2
+
+
+Map ($, $$)
+
+map(object, index)]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<logger level="INFO" doc:name="Logger" doc:id="7275a4b8-dc94-4386-a9fe-80d1484b8526" message="Client API GET Listener : Look up performed ......"/>
+	</flow>
+	<flow name="CommonXREFTemplateFlow" doc:id="70d630fd-ce50-4d3c-9b47-ac091d600d5d" >
+		<choice doc:name="Choice" doc:id="e653a2a2-624e-4e24-9410-7f1ce3c13e6d" >
+			<when expression="#[true]">
+				<http:request method="GET" doc:name="invoke common xref service" doc:id="a9434441-e5f9-4245-be28-4502301d6212" config-ref="HTTP_Request_configuration" path="/commonxref">
+				</http:request>
+				<os:store doc:name="xref_api" doc:id="98cc6ad0-3874-4293-9548-073910021e6f" key="xref_api" objectStore="Object_store_api" />
+				<logger level="INFO" doc:name="Logger" doc:id="824b7f90-5a12-4424-b6bc-023bb96fb75f" message="Client API Common Xref template : xref object received......"/>
+				<logger level="INFO" doc:name="Logger" doc:id="ffae0aec-1011-4973-879c-da8767d21fed" message="#[payload]"/>
+			</when>
+		</choice>
+		<os:retrieve doc:name="Retrieve" doc:id="77f1cce4-b9d9-4ca4-ae89-4038f6e7f702" key="xref_api" objectStore="Object_store_api">
+			<os:default-value><![CDATA[#[payload
+//as of now for POC full full-payload is used but here parameterization will be used for look up]]]></os:default-value>
+		</os:retrieve>
+	</flow>
+	<flow name="QListener_ClientFlow" doc:id="d5fdacfd-a61e-428e-b60b-c4f9d8cd077d" >
+		<vm:listener queueName="Q.CACHE" doc:name="Listener" doc:id="be57866f-f4e1-4c5d-9397-ae37aef9dfc6" config-ref="VM_Config"/>
+		<logger level="INFO" doc:name="Logger" doc:id="420a6535-83df-4a10-8257-46dbda28f42c" message="Client API Q listener  :  subscribed message received....." />
+		<logger level="INFO" doc:name="Logger" doc:id="af09c569-9c27-412e-b935-da838bfe12b3" message="#[payload]" />
+		<os:store doc:name="xref_api" doc:id="8e24e449-0967-4ada-9025-b295146d196b" key="xref_api" objectStore="Object_store_api" />
+		<logger level="INFO" doc:name="Logger" doc:id="6a6654a2-971d-4e05-b034-ea03eafd42f5" message='Client API Q listener  :  xref data updated.....'/>
+		<logger level="INFO" doc:name="Logger" doc:id="b5d0add6-45e3-4e19-917b-fb29125cfaf1" message="#[payload]"/>
+	</flow>
+</mule>

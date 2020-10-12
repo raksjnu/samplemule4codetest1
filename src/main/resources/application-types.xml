@@ -1,0 +1,27 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<types:mule xmlns:types="http://www.mulesoft.org/schema/mule/types">
+  <types:catalog>
+    <types:type name="object_property" format="csv">
+      <types:shape format="weave" example="examples/object_system_property.csv"><![CDATA[%dw 2.0
+
+type object_property = Array<{|  BUSINESS_OBJECT: String,   SYSTEM_NAME: String,   SERVICE_NAME: String,   INPUT_VALUE: String,   OUTPUT_VALUE: String|}>
+
+]]></types:shape>
+      <types:properties>
+        <types:property name="headerLineNumber" value="0"/>
+        <types:property name="header" value="true"/>
+        <types:property name="isQuotedString" value="false"/>
+        <types:property name="separator" value=","/>
+      </types:properties>
+    </types:type>
+  </types:catalog>
+  <types:enrichment select="#c330e245-791a-4655-a2d9-ccaa33a8c8fe">
+    <types:processor-declaration>
+      <types:input-event>
+        <types:message>
+          <types:payload type="object_property"/>
+        </types:message>
+      </types:input-event>
+    </types:processor-declaration>
+  </types:enrichment>
+</types:mule>

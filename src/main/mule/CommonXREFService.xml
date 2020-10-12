@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:jms="http://www.mulesoft.org/schema/mule/jms" xmlns:os="http://www.mulesoft.org/schema/mule/os"
+	xmlns:vm="http://www.mulesoft.org/schema/mule/vm"
+	xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:file="http://www.mulesoft.org/schema/mule/file" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/file http://www.mulesoft.org/schema/mule/file/current/mule-file.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/vm http://www.mulesoft.org/schema/mule/vm/current/mule-vm.xsd
+http://www.mulesoft.org/schema/mule/os http://www.mulesoft.org/schema/mule/os/current/mule-os.xsd
+http://www.mulesoft.org/schema/mule/jms http://www.mulesoft.org/schema/mule/jms/current/mule-jms.xsd">
+	<http:listener-config name="HTTP_Listener_config" doc:name="HTTP Listener config" doc:id="a7aee684-4dfb-4057-96fc-bf6f0f4fbc1d">
+		<http:listener-connection host="0.0.0.0" port="8081" />
+	</http:listener-config>
+	<file:config name="File_Config" doc:name="File Config" doc:id="c25544a1-71f8-4618-97ad-e4d9dc1374e5" >
+		<file:connection workingDir="/Users/raks/tmp/mule4POC/input_file" />
+	</file:config>
+	<vm:config name="VM_Config" doc:name="VM Config" doc:id="48ecb594-2a2e-4876-a39b-e8647ee147ba">
+		<vm:queues >
+			<vm:queue queueName="Q.CACHE" />
+		</vm:queues>
+	</vm:config>
+	<flow name="xref_API" doc:id="4d3ae443-51cd-478e-9f17-84a4b3880e1f" >
+		<http:listener doc:name="Listener" doc:id="67e6a529-b93c-4143-9e82-398f2893faf6" config-ref="HTTP_Listener_config" path="/commonxref"/>
+		<logger level="INFO" doc:name="Logger" doc:id="a75dc40c-8550-45a3-aec5-af5f1e6a456f" message="Common XREF Service GET listener :  started......"/>
+		<set-variable value="#[attributes.queryParams.SERVICE_NAME]" doc:name="SERVICE_NAME" doc:id="2ff4b644-796d-413f-8ccf-f15270b23161" variableName="SERVICE_NAME"/>
+		<file:read doc:name="Read" doc:id="883d9dc7-7dce-4a54-a8d5-44fc290504e9" config-ref="File_Config" path="object_system_property.csv"/>
+		<logger level="INFO" doc:name="Logger" doc:id="c873a4a5-cb3f-43dc-9d89-97ac265747a4" message='#["queryParams received": vars.SERVICE_NAME]'/>
+		<choice doc:name="Choice" doc:id="028d6929-4bf0-4554-b10e-5450f3c47269" >
+			<when expression="#[vars.SERVICE_NAME != null]">
+				<ee:transform doc:name="xref Data" doc:id="c330e245-791a-4655-a2d9-ccaa33a8c8fe">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+payload map ((item, index) -> (item)) filter (item) -> (item.SERVICE_NAME == vars.SERVICE_NAME)
+]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+			</when>
+			<otherwise >
+				<ee:transform doc:name="Xref Data" doc:id="5c7cc453-21ee-4029-992b-ec3207421674" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</otherwise>
+		</choice>
+		<os:store doc:name="Store_xref" doc:id="3a8136a7-7120-4584-add0-f2a7396f1c50" key="xref_common" objectStore="Object_store_commonxref"/>
+		<logger level="INFO" doc:name="Logger" doc:id="a44bc0a7-0662-4da6-b37d-8dbbe220864f" message='Common XREF Service GET listener :  object store created ......'/>
+		<logger level="INFO" doc:name="Logger" doc:id="2ba4f005-3764-4d99-b26a-dda35476f019" message="#[payload]" />
+		<vm:publish queueName="Q.CACHE" doc:name="Publish to subscribers" doc:id="d0746639-2282-481b-bc3c-9e06d2eb1f17" config-ref="VM_Config" />
+		<logger level="INFO" doc:name="Logger" doc:id="0d07d28c-b0ff-4555-9507-dc346479eddc" message="Common XREF Service GET listener : object store data published to queue ......"/>
+	</flow>
+	<flow name="xref_File_Listener" doc:id="112a8143-bea2-4e6b-b874-e27c05d90a33" >
+		<file:listener doc:name="On New or Updated File" doc:id="d7e71ebe-91e1-4492-8574-7e7e8d44883e" config-ref="File_Config" directory="/Users/raks/tmp/mule4POC/input_file" watermarkMode="MODIFIED_TIMESTAMP">
+			<scheduling-strategy >
+				<fixed-frequency frequency="10" timeUnit="SECONDS"/>
+			</scheduling-strategy>
+			<file:matcher filenamePattern="*.csv" />
+		</file:listener>
+		<os:store doc:name="Store_xref" doc:id="a7a1b181-b1bb-4670-8d35-3a6e65f88e49" key="xref_common" objectStore="Object_store_commonxref" />
+		<logger level="INFO" doc:name="Logger" doc:id="b1168347-7cdf-4fc4-aab9-78dd1cbc5ff0" message="Common XREF Service File listener : object store updated ......"/>
+		<logger level="INFO" doc:name="Logger" doc:id="a355748f-3d12-4ced-95f1-8f385f6566aa" message="#[payload]"/>
+		<vm:publish queueName="Q.CACHE" doc:name="Publish to subscribers" doc:id="91f96a53-f0d8-46f1-bbce-887ddf40aadd" config-ref="VM_Config" />
+		<logger level="INFO" doc:name="Logger" doc:id="7be193a8-276c-496d-9cc2-99ddc7487143" message="Common XREF Service File listener : object store data published to queue ......" />
+	</flow>
+</mule>
